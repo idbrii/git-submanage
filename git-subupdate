@@ -1,0 +1,14 @@
+#! /bin/bash
+
+# Apply remote changes to submodules.
+#
+# Sync all urls, update HEAD to match remote, and use master branch if it's at
+# HEAD.
+
+f() {
+    git submodule sync &&
+        git submodule update --init --recursive &&
+        git submodule foreach --recursive git use-branch-if-already-there master
+}
+
+f $*

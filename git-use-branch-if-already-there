@@ -1,0 +1,18 @@
+#! /bin/bash
+
+# Checkout input branch if it matches the current commit
+#
+# Useful to ensure submodules are using a branch (since they're usually at the
+# same commit as master, but the branch isn't automatically checked out).
+
+f() {
+    branch=$1
+    n_commits=$(git show --oneline --no-patch $branch HEAD 2> /dev/null | wc -l)
+    if [ $n_commits -eq 1 ] ; then
+        git checkout $branch
+    else
+        git branch
+    fi
+}
+
+f $*

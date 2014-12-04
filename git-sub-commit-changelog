@@ -1,0 +1,25 @@
+#! /bin/bash
+
+# Commit the changelog for a pending submodule
+#
+# Commits the updated submodule with the changelog as the commit description.
+
+f() {
+    module=$1
+    if [ -d $module ] ; then
+        git add $module
+        if [ $? -eq 0 ] ; then
+            prev_head=$(git diff --staged $module | sed -n -e's/-Subproject commit \(.*\)/\1/p')
+            cat \
+                <(printf 'Update %s\n\nChangelog:\n' $module) \
+                <(git -C $module log --pretty=%s --first-parent $prev_head..HEAD) \
+                | git commit --file=-
+        else
+            return -1
+        fi
+    else
+        return -1
+    fi
+}
+
+f $*

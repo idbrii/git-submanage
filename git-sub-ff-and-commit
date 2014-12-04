@@ -1,0 +1,25 @@
+#! /bin/bash
+
+# Commit submodule at origin's master
+#
+# Grab master if it's at our current commit, skip to origin's master, commit a
+# changelog to parent repo.
+#
+# To apply to all submodules, you can use:
+#   git submodule foreach "cd - ; echo git sub-ff-and-commit \$name $*"
+
+f() {
+    module=$1
+    remote=origin
+    branch=master
+    if [ $# -ge 3 ] ; then
+        remote=$2
+        branch=$3
+    fi
+
+    git -C $module use-branch-if-already-there $branch &&
+        git -C $module merge --ff-only $remote/$branch &&
+        git sub-commit-changelog $module
+}
+
+f $*
