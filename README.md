@@ -3,6 +3,13 @@ git-submanage
 
 Simple scripts to manage git submodules
 
+# Usage
+
+Clone and add the scripts to your $PATH: Either link them to a directory
+already in your PATH, or add this folder to your PATH.
+
+
+# Scripts
 
 ## git-sub-commit-changelog
 Commit the changelog for a pending submodule
@@ -31,3 +38,9 @@ Checkout input branch if it matches the current commit
 
 Useful to ensure submodules are using a branch (since they're usually at the
 same commit as master, but the branch isn't automatically checked out).
+
+Generally, this is used by other scripts (subupdate and sub-ff-and-commit).
+
+
+# License
+MIT
