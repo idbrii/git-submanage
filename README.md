@@ -26,7 +26,7 @@ To apply to all submodules, you can use:
     git submodule foreach "cd - ; echo git sub-ff-and-commit \$name $*"
 
 
-## git-subupdate
+## git-sub-update
 Apply remote changes to submodules.
 
 Sync all urls, update HEAD to match remote, and use master branch if it's at
@@ -39,7 +39,7 @@ Checkout input branch if it matches the current commit
 Useful to ensure submodules are using a branch (since they're usually at the
 same commit as master, but the branch isn't automatically checked out).
 
-Generally, this is used by other scripts (subupdate and sub-ff-and-commit).
+Generally, this is used by other scripts (sub-update and sub-ff-and-commit).
 
 
 # License
