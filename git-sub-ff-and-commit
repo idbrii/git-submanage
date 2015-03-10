@@ -18,6 +18,7 @@ f() {
     fi
 
     git -C $module use-branch-if-already-there $branch &&
+        git -C $module fetch &&
         git -C $module merge --ff-only $remote/$branch &&
         git sub-commit-changelog $module
 }
