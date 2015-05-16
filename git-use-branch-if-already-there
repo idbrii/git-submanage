@@ -7,6 +7,12 @@
 
 f() {
     branch=$1
+    if [ -z "$branch" ] ; then
+        echo "Branch to manage required."
+        echo "Usage: $(basename $0) branch-name"
+        exit -1
+    fi
+
     n_commits=$(git show --oneline --no-patch $branch HEAD 2> /dev/null | wc -l)
     if [ $n_commits -eq 1 ] ; then
         git checkout $branch
