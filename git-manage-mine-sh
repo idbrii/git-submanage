@@ -1,0 +1,134 @@
+#! /bin/bash
+
+# Manage repos that belong to my user.
+#
+# Looks for your system user name and git email username in remotes and ensures that
+# the remote name is 'mine'. For any repo with a remote 'mine', syncs local
+# input branch with mine (ex. master and mine/master).
+
+# Functions {{{1
+function confirm-continue #{{{2
+{
+    # Require confirmation to continue, otherwise exit.
+    while true; do
+        read -n1 -p "$1" yn
+        echo
+        case $yn in
+            [Yy]* ) return;;
+            [Nnq]* ) exit;;
+            * ) echo "Please answer y or n.";;
+        esac
+    done
+}
+
+function find_remotes #{{{2
+{
+    if [ $# -lt 1 ] ; then
+        echo "Error: find_remotes requires a username filter."
+        exit -1
+    fi
+
+    # Find remotes we're interested in looking at. I don't see a reason to look
+    # at fetch and push separately (since they're always the same for me).
+    git remote -v | grep -e 'fetch)$' | grep $*
+}
+
+# Inputs {{{1
+# Accept the desired branch as an argument. {{{2
+dest_branch=$1
+if [ -z "$dest_branch" ] ; then
+    echo "Error: Branch to manage required."
+    echo "Usage: $(basename $0) branch-name"
+    exit -1
+fi
+
+# Accept --all to recurse on all submodules. {{{2
+if [ "$2" == "--all" ] ; then
+    git submodule foreach "git manage-mine $dest_branch \$name"
+    exit
+fi
+
+# Accept the repo name as an optional argument. {{{2
+name=$2
+
+# When called from `git submodule foreach`, $name is provided, but also support
+# calling directly.
+if [ -z "$name" ] ; then
+    name=Repo
+fi
+
+# Implementation {{{1
+# Collect names to search for. {{{2
+# Use same name associated with git config.
+user_query=
+
+git_user_guess=`git config user.email | cut -d@ -f1`
+if [ -n "$git_user_guess" ] ; then
+    user_query="$user_query -e \b$git_user_guess\b"
+fi
+
+# And your system username.
+if [ -n "$USER" ] ; then
+    user_query="$user_query -e \b$USER\b"
+elif [ -n "$USERNAME" ] ; then
+    user_query="$user_query -e \b$USERNAME\b"
+fi
+
+if [ -z "$user_query" ] ; then
+    echo "Error: Don't know user to search for."
+    exit -1
+fi
+
+# Process remotes. {{{2
+my_remotes=`find_remotes $user_query`
+echo $my_remotes
+# Have any remotes for my user?
+echo $my_remotes | wc -l
+if [ `echo $my_remotes | wc -l` -gt 0 ] ; then
+    # Is the remote named mine?
+    if [ `echo $my_remotes | grep -e "^mine\b" | wc -l` -eq 0 ] ; then
+        origin=`echo $my_remotes | cut -f1 -d\t | cut -f1 -d\  `
+        if [ -z "$origin" ] ; then
+            # Not really valid.
+            exit
+        fi
+        echo "$name has my name but remote '$origin' isn't mine:"
+        find_remotes $user_query
+        echo
+        confirm-continue "Rename remote '$origin' to mine? "
+        git remote rename $origin mine
+        echo
+    fi
+
+    # Is the remote named mine?
+    if [ `find_remotes $user_query | grep -e "^mine\b" | wc -l` -eq 0 ] ; then
+        echo "Failed to find remote 'mine':"
+        find_remotes $user_query
+        exit -1
+    fi
+
+    # We don't fetch before doing the following work because we presumably
+    # already fetched in git-sub-update or git pull.
+
+    git use-branch-if-already-there $dest_branch || exit -1
+
+    echo "git graph mine/$dest_branch..$dest_branch | wc -l"
+    if [ `git graph mine/$dest_branch..$dest_branch | wc -l` -gt 0 ] ; then
+        echo "$name is mine, but not pushed."
+        git graph mine/$dest_branch..$dest_branch 
+        echo
+        confirm-continue "Push $dest_branch to mine? "
+        git push mine $dest_branch
+    elif [ `git graph $dest_branch..mine/$dest_branch | wc -l` -gt 0 ] ; then
+        echo "$name is mine, but behind."
+        git graph $dest_branch..mine/$dest_branch 
+        echo
+        confirm-continue "Fast-forward to mine/$dest_branch? "
+        git merge --ff-only mine/$dest_branch
+    else
+        echo "$name is mine and wonderful."
+        find_remotes $user_query
+    fi
+fi
+
+echo
