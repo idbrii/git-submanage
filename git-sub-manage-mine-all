@@ -1,0 +1,18 @@
+#! /bin/bash
+
+# Run git-manage-mine on all submodules.
+#
+# Passes the name so you know which module is which.
+
+f() {
+    branch=$1
+    if [ -z "$branch" ] ; then
+        echo "Branch to manage required."
+        echo "Usage: $(basename $0) branch-name"
+        exit -1
+    fi
+
+    git submodule foreach "git manage-mine --name \$name $branch"
+}
+
+f $*
