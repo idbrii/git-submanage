@@ -69,6 +69,8 @@ def parse_args():
     # calling directly and use generic "Repo".
     p.add_argument("--name", type=str, default="Repo", help="Name of the module we're operating on (for output).")
 
+    p.add_argument("--quiet", default=False, action="store_true", help="Enable minimal output.")
+
     return p.parse_args()
 
 
@@ -235,7 +237,7 @@ if my_remotes:
         print()
         if query_yes_no("Fast-forward to mine/{br}?".format(br=args.branch)):
             git_edit("merge", "--ff-only", "mine/{br}".format(br=args.branch))
-    else:
+    elif not args.quiet:
         print("{name} is mine and wonderful.".format(name=args.name))
         prettify_remotes(find_remotes(user_regex))
 
