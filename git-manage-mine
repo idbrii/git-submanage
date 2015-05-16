@@ -220,6 +220,14 @@ if my_remotes:
 
     git_edit("use-branch-if-already-there", "{br}".format(br=args.branch))
 
+    delta_cmd = "HEAD...{br}".format(br=args.branch)
+    delta = git_graph(delta_cmd)
+    if any(delta):
+        print("Error: HEAD is not at {br}!\n Commits between {commits}:".format(br=args.branch, commits=delta_cmd))
+        print(prettify_commits(delta))
+        print()
+        sys.exit(-1)
+
     ahead = get_history_ahead(args.branch)
     behind = get_history_behind(args.branch)
     if any(ahead):
