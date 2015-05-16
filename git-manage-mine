@@ -1,0 +1,242 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# Manage repos that belong to my user.
+#
+# Looks for your system user name and git email username in remotes and ensures that
+# the remote name is 'mine'. For any repo with a remote 'mine', syncs local
+# input branch with mine (ex. master and mine/master).
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+import argparse
+import os
+import sys
+import re
+import subprocess
+import pprint
+
+pprint = pprint.PrettyPrinter().pprint
+
+DEBUG_DISABLE_EDIT = False
+#DEBUG_DISABLE_EDIT = True
+
+# Functions {{{1
+
+def _git(*git_args):
+    """Execute git command and return a list of lines of output.
+    _git(list(str)) -> list(str)
+
+    Prints any errors to stderr.
+    """
+    cmd = ["git"] + list(git_args)
+    p = subprocess.Popen(cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE)
+    out, err = p.communicate()
+    if err:
+        print(err, file=sys.stderr)
+    return out.strip().split('\n')
+
+
+git_query = _git
+git_edit = _git
+
+if DEBUG_DISABLE_EDIT:
+    git_edit = print
+
+
+def git_graph(refs):
+    return git_query("log", "--graph", "--oneline", "--abbrev-commit", refs)
+
+
+def get_history_ahead(branch):
+    return git_graph("mine/{br}..{br}".format(br=branch))
+
+
+def get_history_behind(branch):
+    return git_graph("{br}..mine/{br}".format(br=branch))
+
+
+def parse_args():
+    p = argparse.ArgumentParser()
+    p.add_argument("branch", type=str, help="Branch to operate on.")
+
+    g = p.add_mutually_exclusive_group()
+    g.add_argument("--all", action="store_true", help="Run on all submodules with foreach.")
+    # When called from `git submodule foreach`, $name is provided, but also support
+    # calling directly and use generic "Repo".
+    g.add_argument("--name", type=str, default="Repo", help="Name of the module we're operating on (for output).")
+
+    return p.parse_args()
+
+
+filter_regex = re.compile('fetch\)$')
+def find_remotes(user_regex): #{{{2
+    """
+    find_remotes(re) -> list(str)
+
+    >>> import re
+    >>> user_regex = re.compile("hi|hello")
+    >>> matches = [r for r in ("hello world", "that guy says hi") if user_regex.match(r)]
+    >>> for m in matches: print(m)
+    hello world
+    >>> searches = [r for r in ("hello world", "that guy says hi") if user_regex.search(r)]
+    >>> for m in searches: print(m)
+    hello world
+    that guy says hi
+    """
+    # Find remotes we're interested in looking at. I don't see a reason to look
+    # at fetch and push separately (since they're always the same for me).
+    remotes = git_query("remote", "-v")
+    remotes = [r for r in remotes if filter_regex.search(r)]
+    remotes = [r for r in remotes if user_regex.search(r)]
+    return remotes
+
+
+def prettify_remotes(remotes):
+    return "\n".join(remotes)
+
+
+def prettify_commits(commits):
+    return "\n".join(commits)
+
+
+def query_yes_no(question):
+    """Ask a yes/no question via raw_input() and return their answer.
+
+    query_yes_no(str) -> bool
+    "question" is a string that is presented to the user.
+    The "answer" return value is True for "yes" or False for "no".
+
+    via http://stackoverflow.com/questions/3041986/python-command-line-yes-no-input
+    """
+
+    # If there's no tty to give us input, then assume no unless we're debugging
+    # and destructive actions are disabled.
+    if not sys.stdin.isatty():
+        print(question +'Assume '+ str(DEBUG_DISABLE_EDIT))
+        return DEBUG_DISABLE_EDIT
+
+    valid = {"yes": True, "y": True,
+             "no": False, "n": False
+    }
+    prompt = " [y/n/q] "
+
+    while True:
+        sys.stdout.write(question + prompt)
+        choice = raw_input().lower()
+        if choice in valid:
+            return valid[choice]
+        if choice == 'q':
+            sys.exit()
+        else:
+            sys.stdout.write("Please respond with 'yes' or 'no' "
+                             "(or 'y' or 'n').\n")
+
+
+def build_username_regex():
+    """Collect names to search for.
+    Use same name associated with git config.
+    """
+    names = [os.environ.get(var) for var in ('USER', 'USERNAME')]
+    git_user_guess = git_query("config", "user.email")
+    try:
+        # Assume only one user.
+        git_user_guess = git_user_guess[0]
+        # Pull out username from email address.
+        at_sign = git_user_guess.index('@')
+        names.append(git_user_guess[:at_sign])
+    except IndexError:
+        pass
+    except ValueError:
+        pass
+
+    user_query = "|".join([n for n in names if n])
+    if user_query:
+        return re.compile(user_query)
+    return None
+
+# Inputs {{{1
+
+# Parse. {{{2
+args = parse_args()
+
+# Accept --all to recurse on all submodules. {{{2
+if args.all:
+    git_edit("submodule", "foreach", "git manage-mine --name \\$name {br}".format(br=args.branch))
+    sys.exit()
+
+# Implementation {{{1
+user_regex = build_username_regex()
+
+if not user_regex:
+    print("Error: Don't know user to search for.")
+    sys.exit(-1)
+
+# Process remotes. {{{2
+my_remotes = find_remotes(user_regex)
+# Have any remotes for my user?
+if my_remotes:
+    remote_regex = re.compile(u'(\w\+)\t')
+    mine_regex = re.compile(u'(mine)\t')
+
+    # Is there no remote named mine?
+    mine_matches = [mine_regex.match(remote) for remote in my_remotes]
+    if not any(mine_matches):
+        remote_names = [remote.split('\t') for remote in my_remotes]
+        remote_names = [r[0] for r in remote_names if r]
+        if not remote_names:
+            print("Not really valid.")
+            sys.exit()
+
+        if len(remote_names) > 1:
+            print("Multiple possible remote names:")
+            print(prettify_remotes(my_remotes))
+
+        origin = remote_names[0]
+        print("{name} has my name but remote '{origin}' isn't mine:".format(name=args.name, origin=origin))
+        print(prettify_remotes(find_remotes(user_regex)))
+        print()
+        if not query_yes_no("Rename remote '{origin}' to mine?".format(origin=origin)):
+            sys.exit()
+        git_edit("remote", "rename", origin, "mine")
+        # Renamed remote, refresh list.
+        my_remotes = find_remotes(user_regex)
+        print()
+
+    # Is there still no remote named mine?
+    mine_matches = [mine_regex.match(remote) for remote in my_remotes]
+    if not any(mine_matches):
+        print("Failed to find remote 'mine':")
+        print(prettify_remotes(find_remotes(user_regex)))
+        sys.exit(-1)
+
+    # We don't fetch before doing the following work because we presumably
+    # already fetched in git-sub-update or git pull.
+
+    git_edit("use-branch-if-already-there", "{br}".format(br=args.branch))
+
+    ahead = get_history_ahead(args.branch)
+    behind = get_history_behind(args.branch)
+    if any(ahead):
+        print("{name} is mine, but not pushed.".format(name=args.name))
+        print(prettify_commits(ahead))
+        print()
+        if query_yes_no("Push {br} to mine?".format(br=args.branch)):
+            git_edit("push", "mine", "{br}".format(br=args.branch))
+    elif any(behind):
+        print("{name} is mine, but behind.".format(name=args.name))
+        print(prettify_commits(behind))
+        print()
+        if query_yes_no("Fast-forward to mine/{br}?".format(br=args.branch)):
+            git_edit("merge", "--ff-only", "mine/{br}".format(br=args.branch))
+    else:
+        print("{name} is mine and wonderful.".format(name=args.name))
+        prettify_remotes(find_remotes(user_regex))
+
+print()
+
