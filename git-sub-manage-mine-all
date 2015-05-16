@@ -12,7 +12,7 @@ f() {
         exit -1
     fi
 
-    git submodule foreach "git manage-mine --name \$name $branch"
+    git submodule foreach "git manage-mine --name \$name $* || :"
 }
 
 f $*
