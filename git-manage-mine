@@ -65,11 +65,9 @@ def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("branch", type=str, help="Branch to operate on.")
 
-    g = p.add_mutually_exclusive_group()
-    g.add_argument("--all", action="store_true", help="Run on all submodules with foreach.")
     # When called from `git submodule foreach`, $name is provided, but also support
     # calling directly and use generic "Repo".
-    g.add_argument("--name", type=str, default="Repo", help="Name of the module we're operating on (for output).")
+    p.add_argument("--name", type=str, default="Repo", help="Name of the module we're operating on (for output).")
 
     return p.parse_args()
 
@@ -164,11 +162,6 @@ def build_username_regex():
 
 # Parse. {{{2
 args = parse_args()
-
-# Accept --all to recurse on all submodules. {{{2
-if args.all:
-    git_edit("submodule", "foreach", "git manage-mine --name \\$name {br}".format(br=args.branch))
-    sys.exit()
 
 # Implementation {{{1
 user_regex = build_username_regex()
