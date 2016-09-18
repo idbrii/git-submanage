@@ -70,8 +70,18 @@ def parse_args():
     p.add_argument("--name", type=str, default="Repo", help="Name of the module we're operating on (for output).")
 
     p.add_argument("--quiet", default=False, action="store_true", help="Enable minimal output.")
+    p.add_argument("--yes-all", default=False, action="store_true", help="Assume yes for all prompts.")
+    p.add_argument("--yes-rename", default=False, action="store_true", help="Assume yes for rename prompts.")
+    p.add_argument("--yes-ff", default=False, action="store_true", help="Assume yes for fast-fwd prompts.")
 
-    return p.parse_args()
+    args = p.parse_args()
+
+    if args.yes_all:
+        args.yes_rename = True
+        args.yes_ff = True
+
+    return args
+
 
 
 filter_regex = re.compile('fetch\)$')
@@ -196,7 +206,7 @@ if my_remotes:
         print("{name} has my name but remote '{origin}' isn't mine:".format(name=args.name, origin=origin))
         print(prettify_remotes(find_remotes(user_regex)))
         print()
-        if not query_yes_no("Rename remote '{origin}' to mine?".format(origin=origin)):
+        if not args.yes_rename and not query_yes_no("Rename remote '{origin}' to mine?".format(origin=origin)):
             sys.exit()
         git_edit("remote", "rename", origin, "mine")
         # Renamed remote, refresh list.
@@ -235,7 +245,7 @@ if my_remotes:
         print("{name} is mine, but behind.".format(name=args.name))
         print(prettify_commits(behind))
         print()
-        if query_yes_no("Fast-forward to mine/{br}?".format(br=args.branch)):
+        if args.yes_ff or query_yes_no("Fast-forward to mine/{br}?".format(br=args.branch)):
             git_edit("merge", "--ff-only", "mine/{br}".format(br=args.branch))
     elif not args.quiet:
         print("{name} is mine and wonderful.".format(name=args.name))
