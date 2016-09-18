@@ -223,15 +223,39 @@ if my_remotes:
     # We don't fetch before doing the following work because we presumably
     # already fetched in git-sub-update or git pull.
 
-    git_edit("use-branch-if-already-there", "{br}".format(br=args.branch))
+    git_edit("use-branch-if-already-there", args.branch)
 
+    # Are there *any* commits between HEAD and destination branch?
     delta_cmd = "HEAD...{br}".format(br=args.branch)
     delta = git_graph(delta_cmd)
     if any(delta):
-        print("Error: HEAD is not at {br}!\n Commits between {commits}:".format(br=args.branch, commits=delta_cmd))
+        print("Error: HEAD is not at {br}!\n Commits uncommon in {commits}:".format(br=args.branch, commits=delta_cmd))
         print(prettify_commits(delta))
         print()
-        sys.exit(-1)
+
+        delta_cmd = "HEAD...mine/{br}".format(br=args.branch)
+        delta = git_graph(delta_cmd)
+        if any(delta):
+            # HEAD is somewhere else. Abort.
+            sys.exit(-1)
+        else:
+            # Our local master is behind.
+            #
+            # See if branch is behind HEAD (has nothing extra and there are new
+            # commits).
+            delta_cmd = "HEAD..{br}".format(br=args.branch)
+            delta = git_graph(delta_cmd)
+            something_left_behind = any(delta)
+            delta_cmd = "{br}..HEAD".format(br=args.branch)
+            delta = git_graph(delta_cmd)
+            if not something_left_behind and any(delta):
+                print("{br} is behind HEAD but HEAD is at mine/{br}.".format(br=args.branch))
+                print(" Commits between {commits}:".format(br=args.branch, commits=delta_cmd))
+                print(prettify_commits(delta))
+                print()
+                if query_yes_no("Force {br} forward to HEAD?".format(br=args.branch)):
+                    git_edit("branch", "-f", args.branch, "HEAD")
+                    git_edit("use-branch-if-already-there", args.branch)
 
     ahead = get_history_ahead(args.branch)
     behind = get_history_behind(args.branch)
