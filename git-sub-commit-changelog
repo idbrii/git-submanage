@@ -6,20 +6,52 @@
 
 f() {
     module=$1
-    if [ -d $module ] ; then
-        git add $module
-        if [ $? -eq 0 ] ; then
-            prev_head=$(git diff --staged $module | sed -n -e's/-Subproject commit \(.*\)/\1/p')
-            cat \
-                <(printf 'Update %s\n\nChangelog:\n' $module) \
-                <(git -C $module log --pretty=%s --first-parent $prev_head..HEAD) \
-                | git commit --file=-
-        else
-            return -1
-        fi
-    else
+    if [ ! -d $module ] ; then
+        echo
+        echo "Error: Submodule $module does not exist."
         return -1
     fi
+
+    git add $module
+    if [ $? -ne 0 ] ; then
+        echo
+        echo "Error: No changes in submodule $module."
+        return -1
+    fi
+
+    prev_head=$(git diff --staged $module | sed -n -e's/-Subproject commit \(.*\)/\1/p')
+    if [[ -z $prev_head ]]; then
+        echo
+        echo "Error: No changes in submodule $module."
+        return -1
+    fi
+
+    changelog=$(git -C $module log --pretty=%s --first-parent $prev_head..HEAD)
+    if [[ $? > 0 ]]; then
+        # Git error
+        echo
+        echo "Error: Git didn't understand revision range. Often occurs when committed"
+        echo "submodule contains unpushed commits. Likely the working copy submodule is out"
+        echo "of date."
+        echo "       Try git sub-update."
+        return -1
+
+    elif [[ $(echo "$changelog" | wc -c) -eq 1 ]]; then
+        # One character means just a newline. No data.
+        echo
+        echo "Error: No changes in changelog. Often occurs when working copy submodule is"
+        echo "older than committed submodule."
+        echo "       Try git sub-update."
+        echo
+        echo "Changes in committed submodule that are missing from working copy:"
+        git -C $module log --pretty="  * %s" --first-parent HEAD..$prev_head
+        echo
+        return -1
+    fi
+
+    echo "$changelog" | cat \
+        <(printf 'Update %s\n\nChangelog:\n' $module) \
+        - | git commit --file=-
 }
 
 f $*
