@@ -3,8 +3,17 @@
 # Commit the changelog for a pending submodule
 #
 # Commits the updated submodule with the changelog as the commit description.
+#
+# Options:
+# --verbose  Show the changelog.
 
 f() {
+    verbose=false
+    if [[ $1 == --verbose ]]; then
+        verbose=true
+        shift
+    fi
+
     module=$1
     if [ ! -d $module ] ; then
         echo
@@ -52,6 +61,13 @@ f() {
     echo "$changelog" | cat \
         <(printf 'Update %s\n\nChangelog:\n' $module) \
         - | git commit --file=-
+
+    if [[ "$verbose" == true ]]; then
+        echo
+        echo "Submitted with changelog:"
+        echo
+        echo "$changelog"
+    fi
 }
 
 f $*
