@@ -30,6 +30,7 @@ f() {
 
     prev_head=$(git diff --staged $module | sed -n -e's/-Subproject commit \(.*\)/\1/p')
     if [[ -z $prev_head ]]; then
+        git reset -- $module
         echo
         echo "Error: No changes in submodule $module."
         return -1
@@ -38,6 +39,7 @@ f() {
     changelog=$(git -C $module log --pretty=%s --first-parent $prev_head..HEAD)
     if [[ $? > 0 ]]; then
         # Git error
+        git reset -- $module
         echo
         echo "Error: Git didn't understand revision range. Often occurs when committed"
         echo "submodule contains unpushed commits. Likely the working copy submodule is out"
@@ -47,6 +49,7 @@ f() {
 
     elif [[ $(echo "$changelog" | wc -c) -eq 1 ]]; then
         # One character means just a newline. No data.
+        git reset -- $module
         echo
         echo "Error: No changes in changelog. Often occurs when working copy submodule is"
         echo "older than committed submodule."
